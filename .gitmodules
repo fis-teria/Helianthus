@@ -1,0 +1,9 @@
+[submodule "autoware"]
+	path = autoware
+	url = https://github.com/autowarefoundation/autoware.git
+[submodule "autoware_launch"]
+	path = autoware_launch
+	url = git@github.com:fis-teria/autoware_launch.git
+[submodule "amaranthus"]
+	path = amaranthus
+	url = git@github.com:fis-teria/amaranthus.git
