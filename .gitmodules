@@ -6,4 +6,4 @@
 	url = git@github.com:fis-teria/autoware_launch.git
 [submodule "amaranthus"]
 	path = amaranthus
-	url = git@github.com:fis-teria/amaranthus.git
+	url = git@github.com:fis-teria/AMaRanthus.git
