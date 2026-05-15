@@ -1,0 +1,14 @@
+# Local editor and Codex state
+.codex
+.codex/
+.vscode/
+
+# Runtime data, logs, and build outputs
+Data/
+build/
+install/
+log/
+
+# Generated diagnostics
+frames_*.gv
+frames_*.pdf
