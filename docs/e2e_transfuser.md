@@ -42,6 +42,67 @@ ros2 launch e2e_transfuser shadow_mode_e2e_transfuser.launch.py \
   yolo_device:=cpu
 ```
 
+Camera GUI latency target:
+
+The current GMSL2 capture device advertises `1920x1280 UYVY` only, with `30/20/10fps`
+intervals. It does not expose a native `1280x720` mode through V4L2, so the default
+bringup throttles camera publishing to `camera_publish_rate:=10.0` and lets the GUI
+drop stale camera frames with depth-1 QoS. Use `camera_publish_rate:=30.0` only when
+all image consumers can keep up with the full stream.
+
+The V4L2 launcher defaults `use_v4l2_buffer_timestamps:=false` for GUI latency
+checks, so image stamps use the system time when the buffer is read. This separates
+real GUI/display delay from stale or driver-relative V4L2 buffer timestamps.
+
+For the 10Hz GUI path, the lightweight camera fast path can keep the camera topic as
+`camera_output_encoding:=yuv422`. This skips the driver-side full-resolution
+`UYVY -> rgb8` conversion; the GUI, E2E runtime, and path overlay now convert
+`yuv422` locally when they need RGB. The `fp16_minimal` preset enables this fast path.
+The path overlay node is C++ by default and publishes a downscaled display image
+with `e2e_overlay_output_max_edge_px:=640`; raise it to `960` or `1280` if visual
+detail matters more than GUI update rate.
+
+Desktop shortcut:
+
+```bash
+/home/graneple/Desktop/Shadow\ Mode\ E2E\ TransFuser.desktop
+```
+
+The desktop launcher goes through `/home/graneple/Helianthus/launch_shadow_mode_e2e_transfuser_terminal.sh`.
+It now defaults `E2E_LIGHTWEIGHT_PRESET=fp16_minimal`, which expands to:
+
+```bash
+e2e_runtime_mode:=lead_python
+e2e_precision_mode:=fp16
+e2e_runtime_device:=cuda:0
+disable_aux_heads:=true
+single_checkpoint:=true
+use_yolo:=false
+use_livox_lane_detection:=false
+camera_output_encoding:=yuv422
+```
+
+E2E input preprocessing defaults to the OpenCV CPU path. For comparison runs,
+enable the Torch CUDA preprocessing path explicitly:
+
+```bash
+E2E_EXTRA_LAUNCH_ARGS='e2e_input_preprocess_backend:=torch_cuda' \
+  ./launch_shadow_mode_e2e_transfuser_terminal.sh
+```
+
+To override it from a terminal:
+
+```bash
+E2E_LIGHTWEIGHT_PRESET=fp32 ./launch_shadow_mode_e2e_transfuser_terminal.sh
+E2E_LIGHTWEIGHT_PRESET=none ./launch_shadow_mode_e2e_transfuser_terminal.sh
+E2E_LIGHTWEIGHT_PRESET=fp16_minimal ./launch_shadow_mode_e2e_transfuser_terminal.sh
+E2E_EXTRA_LAUNCH_ARGS='use_yolo:=false lead_probe_on_startup:=false' \
+  ./launch_shadow_mode_e2e_transfuser_terminal.sh
+```
+
+`fp16_minimal` keeps the LEAD PyTorch FP16 path but disables YOLO and Livox lane detection
+for lower GPU competition during latency checks.
+
 ## Default Topics
 
 Inputs:
