@@ -20,6 +20,10 @@ Last updated: 2026-05-16
 - `e2e_path_overlay` が `/shadow/e2e/path` を camera image に重畳。
 - YOLO tracking bbox を overlay image に重畳可能。
 - `shadow_mode_e2e_metrics` が E2E 出力と ego / virtual control を比較。
+- `shadow_route_target` が Shadow/GUI route path から `/shadow/route/target_point` を生成。
+- `camera_lane_detection` は YOLO とは別の専用 lane / road-shoulder segmentation
+  モデル用 adapter。`/shadow/perception/lane_path` を publish し、route target
+  source として使える。
 
 ## Main Entry Point
 
@@ -80,6 +84,10 @@ single_checkpoint:=true
 use_yolo:=false
 use_livox_lane_detection:=false
 camera_output_encoding:=yuv422
+lane_detection_publish_colored_cloud:=false
+lane_detection_publish_obstacles:=false
+lane_detection_max_process_rate_hz:=5.0
+lane_detection_device:=cuda:0
 ```
 
 E2E input preprocessing defaults to the OpenCV CPU path. For comparison runs,
@@ -100,8 +108,23 @@ E2E_EXTRA_LAUNCH_ARGS='use_yolo:=false lead_probe_on_startup:=false' \
   ./launch_shadow_mode_e2e_transfuser_terminal.sh
 ```
 
-`fp16_minimal` keeps the LEAD PyTorch FP16 path but disables YOLO and Livox lane detection
-for lower GPU competition during latency checks.
+`fp16_minimal` keeps the LEAD PyTorch FP16 path and disables YOLO and Livox lane
+detection so the E2E 10Hz camera/overlay path remains the priority. To test lane
+detection, enable it explicitly with `use_livox_lane_detection:=true`; it will run
+in scan-only, rate-limited mode by default.
+
+Camera-side lane / road-shoulder detection is a separate path from YOLO. Enable it
+only after installing a dedicated ONNX segmentation model:
+
+```bash
+E2E_EXTRA_LAUNCH_ARGS='use_camera_lane_detection:=true camera_lane_detection_model_path:=/home/graneple/Helianthus/amaranthus/Data/models/camera_lane/lane_segmentation.onnx' \
+  ./launch_shadow_mode_e2e_transfuser_terminal.sh
+```
+
+It publishes `/shadow/perception/lane_path`, which `shadow_route_target` checks
+before `/shadow/virtual/path` by default. If `camera_lane_detection_model_path` is
+empty or invalid, the node publishes `/shadow/perception/lane_status` only and does
+not fake a lane path.
 
 ## Default Topics
 
@@ -109,9 +132,12 @@ Inputs:
 
 - Camera image: `/sensing/camera/camera0/image_rect_color`
 - Camera info: `/sensing/camera/camera0/camera_info`
-- PointCloud2: `/livox/lidar`
+- PointCloud2: `/cloud_registered`
 - Odometry: `/Odometry`
 - Route target: `/shadow/route/target_point`
+- Route target status: `/shadow/route/target_status`
+- Camera lane path: `/shadow/perception/lane_path`
+- Camera lane status: `/shadow/perception/lane_status`
 - YOLO detections: `/yolo/tracking`
 
 Outputs:
@@ -132,7 +158,9 @@ Outputs:
 - `adas_description`
 - `fast_lio`
 - `livox_lane_detection`
+- `camera_lane_detection` when `use_camera_lane_detection:=true`
 - `shadow_mode_bringup`
+- `shadow_route_target`
 - `e2e_transfuser`
 - `shadow_mode_e2e_metrics`
 - `e2e_path_overlay`
@@ -170,4 +198,7 @@ ros2 run e2e_transfuser e2e_transfuser_probe_lead.py \
 
 - Real LEAD / TFv6 weights and runtime environment depend on `Data/` contents on the machine.
 - `require_target_point:=true` が既定なので、route target が未入力だと E2E 出力の意味は限定される。
+- GUI route IF は `/shadow/route/gui_path`。
+- 画像白線 / 路肩検知 IF は `/shadow/perception/lane_path`。`camera_lane_detection`
+  が専用ONNX segmentation modelから publish する。重み未導入時は status のみ。
 - TensorRT / INT8 は検討導線のみで、calibration と path差分評価が必要。
